@@ -1,0 +1,47 @@
+name: Install a workflow to other repository
+
+on: 
+  workflow_dispatch:
+    inputs:
+      workflow:
+        description: 'Workflow to install'
+        required: true
+      repository:
+        description: 'Repository to install the workflow'
+        required: true
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: workflow-catalog
+
+      - name: Generate token
+        id: generate_token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.PRIVATE_KEY }}
+          repository: ${{ github.event.inputs.repository }}
+
+      - name: Checkout the target repository
+        uses: actions/checkout@v2
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+          repository: ${{ github.event.inputs.repository }}
+          path: target-repository
+
+      - name: Add workflow file to the target repository
+        run: |
+          test -d target-repository/.github/workflows || mkdir -p target-repository/.github/workflows
+          cp workflow-catalog/${{ github.event.inputs.workflow }}/main.yml target-repository/.github/${{ github.event.inputs.workflow }}.yml
+
+      - name: Create a pull request to install the workflow
+        uses: peter-evans/create-pull-request@v3
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+          path: target-repository
+          branch: workflow-catalog/install-${{ github.event.inputs.workflow }}
+          commit-message: Install ${{ github.event.inputs.workflow }} workflow from workflow catalog
+          title: Install ${{ github.event.inputs.workflow }} workflow from workflow catalog
